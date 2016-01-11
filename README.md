@@ -1,26 +1,10 @@
-## Introduction
-
-It is now possible to collect a large amount of data about personal
-movement using activity monitoring devices such as a
-[Fitbit](http://www.fitbit.com), [Nike
-Fuelband](http://www.nike.com/us/en_us/c/nikeplus-fuelband), or
-[Jawbone Up](https://jawbone.com/up). These type of devices are part of
-the "quantified self" movement -- a group of enthusiasts who take
-measurements about themselves regularly to improve their health, to
-find patterns in their behavior, or because they are tech geeks. But
-these data remain under-utilized both because the raw data are hard to
-obtain and there is a lack of statistical methods and software for
-processing and interpreting the data.
-
-This assignment makes use of data from a personal activity monitoring
-device. This device collects data at 5 minute intervals through out the
-day. The data consists of two months of data from an anonymous
-individual collected during the months of October and November, 2012
-and include the number of steps taken in 5 minute intervals each day.
+---
+title: "Analyzing FitBit Data"
+---
+This is the first project for the Reproducible Research course in Coursera's Data Science specialization track. It will answer questions using data collected from a FitBit.
 
 ## Data
-
-The data for this assignment can be downloaded from the course web
+The data for this assignment was downloaded from the course web
 site:
 
 * Dataset: [Activity monitoring data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) [52K]
@@ -36,133 +20,104 @@ The variables included in this dataset are:
 * **interval**: Identifier for the 5-minute interval in which
     measurement was taken
 
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+## Loading and preprocessing the data
+
+Download, unzip and load data into data frame `data`. 
+```{r}
+if(!file.exists("repdata_data_activity.zip")) {
+        download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip","repdata_data_activity.zip")
+        unzip("repdata_data_activity.zip")
+}
+
+data <- read.csv("activity.csv")
+```
 
 
+## What is mean total number of steps taken per day?
+Sum steps by day, make the Histogram, and calculate mean and median.
+```{r} 
+steps_by_day <- aggregate(steps ~ date, data, sum)
+hist(steps_by_day$steps, main = paste("Total Steps Each Day"), col="blue", xlab="Number of Steps")
+rmean <- mean(steps_by_day$steps)
+rmedian <- median(steps_by_day$steps)
+```
 
-The dataset is stored in a comma-separated-value (CSV) file and there
-are a total of 17,568 observations in this
-dataset.
+The mean is `r rmean` and the median is `r rmedian`.
 
+## What is the average daily activity pattern?
 
-## Assignment
+* We calculate average steps by interval for all days. 
+* Plot average number steps per day by interval. 
+* Match interval with most average steps. 
+```{r}
+steps_by_interval <- aggregate(steps ~ interval, data, mean)
 
-This assignment will be described in multiple parts. You will need to
-write a report that answers the questions detailed below. Ultimately,
-you will need to complete the entire assignment in a **single R
-markdown** document that can be processed by **knitr** and be
-transformed into an HTML file.
+plot(steps_by_interval$interval,steps_by_interval$steps, type="l", xlab="Interval", ylab="Number of steps",main="Average number of steps per day by interval")
 
-Throughout your report make sure you always include the code that you
-used to generate the output you present. When writing code chunks in
-the R markdown document, always use `echo = TRUE` so that someone else
-will be able to read the code. **This assignment will be evaluated via
-peer assessment so it is essential that your peer evaluators be able
-to review the code for your analysis**.
+max_interval <- steps_by_interval[which.max(steps_by_interval$steps),1]
+```
 
-For the plotting aspects of this assignment, feel free to use any
-plotting system in R (i.e., base, lattice, ggplot2)
+The 5-minute interval, on average across all the days in the data set, containing the maximum number of steps is `r max_interval`.
 
-Fork/clone the [GitHub repository created for this
-assignment](http://github.com/rdpeng/RepData_PeerAssessment1). You
-will submit this assignment by pushing your completed files into your
-forked repository on GitHub. The assignment submission will consist of
-the URL to your GitHub repository and the SHA-1 commit ID for your
-repository state.
+## Impute missing values. Compare imputed to non-imputed data.
 
-NOTE: The GitHub repository also contains the dataset for the
-assignment so you do not have to download the data separately.
+Missing values were imputed by inserting the average for each interval. 
+```{r}
+incomplete <- sum(!complete.cases(data))
+imputed_data <- transform(data, steps = ifelse(is.na(data$steps), steps_by_interval$steps[match(data$interval, steps_by_interval$interval)], data$steps))
+```
 
+For the 2012-10-01 zero steps was imputed because it would have been over 9,000 steps higher than the following day (which had only 126 steps). NAs then were assumed to be zeros to fit the trend of the data. 
+```{r}
+imputed_data[as.character(imputed_data$date) == "2012-10-01", 1] <- 0
+```
 
+Recount total steps by day and create Histogram. 
+```{r}
+steps_by_day_i <- aggregate(steps ~ date, imputed_data, sum)
+hist(steps_by_day_i$steps, main = paste("Total steps each day"), col="blue", xlab="Number of steps")
 
-### Loading and preprocessing the data
+#Make Histogram to show difference with previous. 
+hist(steps_by_day$steps, main = paste("Total steps each day"), col="red", xlab="Number of steps", add=T)
+legend("topright", c("Imputed", "Non-imputed"), col=c("blue", "red"), lwd=10)
+```
 
-Show any code that is needed to
+Compute new mean and median for imputed data. 
+```{r}
+rmean.i <- mean(steps_by_day_i$steps)
+rmedian.i <- median(steps_by_day_i$steps)
+```
 
-1. Load the data (i.e. `read.csv()`)
+Calculate difference between imputed and non-imputed data.
+```{r}
+mean_diff <- rmean.i - rmean
+med_diff <- rmedian.i - rmedian
+```
 
-2. Process/transform the data (if necessary) into a format suitable for your analysis
-
-
-### What is mean total number of steps taken per day?
-
-For this part of the assignment, you can ignore the missing values in
-the dataset.
-
-1. Make a histogram of the total number of steps taken each day
-
-2. Calculate and report the **mean** and **median** total number of steps taken per day
-
-
-### What is the average daily activity pattern?
-
-1. Make a time series plot (i.e. `type = "l"`) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
-
-2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
-
-
-### Imputing missing values
-
-Note that there are a number of days/intervals where there are missing
-values (coded as `NA`). The presence of missing days may introduce
-bias into some calculations or summaries of the data.
-
-1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with `NA`s)
-
-2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
-
-3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
-
-4. Make a histogram of the total number of steps taken each day and Calculate and report the **mean** and **median** total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+Calculate total difference.
+```{r}
+total_diff <- sum(steps_by_day_i$steps) - sum(steps_by_day$steps)
+```
+* The imputed data mean is `r rmean.i`
+* The imputed data median is `r rmedian.i`
+* The difference between the non-imputed mean and imputed mean is `r mean_diff`
+* The difference between the non-imputed median and imputed median is `r med_diff`
+* The difference between total number of steps between imputed and non-imputed data is `r total_diff`.
 
 
-### Are there differences in activity patterns between weekdays and weekends?
+## Are there differences in activity patterns between weekdays and weekends?
+Created a plot to compare number of steps between the week and weekend.  
+**NOTE THAT FOR PROPER VIEWING OF THE FOLLOWING PLOT COMPARING BY WEEKDAY AND WEEKEND YOU MUST SPECIFY BELOW IN THE WEEKDAYS VARIABLE THE WEEKDAYS IN YOUR LANGUAGE. BECAUSE OF I AM IN SPAIN THE NAMES OF THE WEEKDAYS ARE IN SPANISH BUT IN YOUR COMPUTER PERHAPS THE NAMES MUST BE IN ENGLISH OR ANOTHER LANGUAGE.** 
+``` {r}
+weekdays <- c("lunes", "martes", "miércoles", "jueves", "viernes")
+imputed_data$dow = as.factor(ifelse(is.element(weekdays(as.Date(imputed_data$date)),weekdays), "Weekday", "Weekend"))
 
-For this part the `weekdays()` function may be of some help here. Use
-the dataset with the filled-in missing values for this part.
+steps_by_interval_i <- aggregate(steps ~ interval + dow, imputed_data, mean)
 
-1. Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+library(lattice)
 
-1. Make a panel plot containing a time series plot (i.e. `type = "l"`) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). The plot should look something like the following, which was created using **simulated data**:
+xyplot(steps ~ interval|dow,steps_by_interval_i, main="Average Steps per Day by Interval",xlab="Interval", ylab="Steps",layout=c(1,2), type="l")
 
-![Sample panel plot](instructions_fig/sample_panelplot.png) 
-
-
-**Your plot will look different from the one above** because you will
-be using the activity monitor data. Note that the above plot was made
-using the lattice system but you can make the same version of the plot
-using any plotting system you choose.
-
-
-## Submitting the Assignment
-
-To submit the assignment:
-
-1. Commit your completed `PA1_template.Rmd` file to the `master` branch of your git repository (you should already be on the `master` branch unless you created new ones)
-
-2. Commit your `PA1_template.md` and `PA1_template.html` files produced by processing your R markdown file with the `knit2html()` function in R (from the **knitr** package)
-
-3. If your document has figures included (it should) then they should have been placed in the `figure/` directory by default (unless you overrode the default). Add and commit the `figure/` directory to your git repository.
-
-4. Push your `master` branch to GitHub.
-
-5. Submit the URL to your GitHub repository for this assignment on the course web site.
-
-In addition to submitting the URL for your GitHub repository, you will
-need to submit the 40 character SHA-1 hash (as string of numbers from
-0-9 and letters from a-f) that identifies the repository commit that
-contains the version of the files you want to submit. You can do this
-in GitHub by doing the following:
-
-1. Go into your GitHub repository web page for this assignment
-
-2. Click on the "?? commits" link where ?? is the number of commits you have in the repository. For example, if you made a total of 10 commits to this repository, the link should say "10 commits".
-
-3. You will see a list of commits that you have made to this repository. The most recent commit is at the very top. If this represents the version of the files you want to submit, then just click the "copy to clipboard" button on the right hand side that should appear when you hover over the SHA-1 hash. Paste this SHA-1 hash into the course web site when you submit your assignment. If you don't want to use the most recent commit, then go down and find the commit you want and copy the SHA-1 hash.
-
-A valid submission will look something like (this is just an **example**!)
-
-```r
-https://github.com/rdpeng/RepData_PeerAssessment1
-
-7c376cc5447f11537f8740af8e07d6facc3d9645
 ```
